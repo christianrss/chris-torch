@@ -22,7 +22,7 @@ class Var:
             gxs = to_tuple(gxs)
 
             for x, gx in zip(func.input_vars, gxs):
-                x.grad = gx
+                x.grad = gx if x.grad is None else x.grad + x
                 if x.producer is not None:
                     funcs.append(x.producer)
 
@@ -95,8 +95,8 @@ def add(x0, x1):
 
 x0 = Var(np.array(2))
 x1 = Var(np.array(3))
-my_add = lambda x: add(x0, x)
-gradient_check(my_add, x1)
+my_add = lambda x: add(x, x)
+gradient_check(my_add, x0)
 
 # a = Var(np.array(1.0))
 # b = Var(np.array(2.0))
