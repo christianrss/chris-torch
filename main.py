@@ -12,35 +12,46 @@ class Var:
         self.producer = func
 
     def backward(self):
+        if self.grad is None:
+            self.grad = np.array(1.0)
         funcs = [self.producer]
         while funcs:
             func = funcs.pop()
-            x, y = func.input_var, func.output_var
-            x.grad = func.backward(y.grad)
+            gys = [output_var.grad for output_var in func.output_vars]
+            gxs = func.backward(*gys)
+            gxs = to_tuple(gxs)
 
-            if x.producer is not None:
-                funcs.append(x.producer)
+            for x, gx in zip(func.input_vars, gxs):
+                x.grad = gx
+                if x.producer is not None:
+                    funcs.append(x.producer)
 
 def to_array(x):
     if np.isscalar(x):
         return np.array(x)
     return x
 
-class Function:
-    def __call__(self, x):
-        self.input_var = x
-        x_value = x.value
-        y_value = self.forward(x_value)
-        y_value = to_array(y_value)
-        y = Var(y_value)
-        y.link_producer(self)
-        self.output_var = y
-        return y
+def to_tuple(x):
+    if not isinstance(x, tuple):
+        return (x, )
+    return x
 
-    def forward(self, x_value):
+class Function:
+    def __call__(self, *xs):
+        self.input_vars = xs
+        x_values = [x.value for x in xs]
+        y_values = self.forward(*x_values)
+        y_values = to_tuple(y_values)
+        ys = [Var(to_array(y_value)) for y_value in y_values]
+        for y in ys:
+            y.link_producer(self)
+        self.output_vars = ys
+        return ys if  len(ys) > 1 else ys[0]
+
+    def forward(self, *x_values):
         raise NotImplementedError()
 
-    def backward(self, gy):
+    def backward(self, *gys):
         raise NotImplementedError()
 
 class Sin(Function):
@@ -48,25 +59,42 @@ class Sin(Function):
         return np.sin(x_value)
 
     def backward(self, gy):
-        x_value = self.input_var.value
+        x_value = self.input_vars[0].value
         gx = np.cos(x_value) * gy
         return gx
 
-def sin(x):
-    return Sin()(x)
+class Add(Function):
+    def forward(self, x0, x1):
+        y = x0 + x1
+        return y
 
-# x = np.array(2)
-# y = to_array(np.square(x))
-# print(y, type(y))
+    def backward(self, gy):
+        return gy, gy
 
-x = Var(np.array(np.pi/2))
-s1 = Sin()
-s2 = Sin()
-y = s1(x)
-z = s2(y)
+def numerical_diff(f, x, h=1e-4):
+    x0 = Var(np.array(x.value - h))
+    x1 = Var(np.array(x.value + h))
+    y0 = f(x0)
+    y1 = f(x1)
+    return (y1.value - y0.value) / (2 * h)
 
-z.grad = np.array(1.0)
-z.backward()
-# y.grad = s2.backward(z.grad)
-# x.grad = s1.backward(y.grad)
-print(x.grad)
+def gradient_check(f, x):
+    y = f(x)
+    y.backward()
+    numerical_grad = numerical_diff(f, x)
+    if not np.allclose(x.grad, numerical_grad):
+        print('gradient check failed')
+
+def f(x):
+    s1 = Sin()
+    s2 = Sin()
+    return s2(s1(x))
+
+x = Var(np.array(np.pi / 2))
+gradient_check(f, x)
+
+# a = Var(np.array(1.0))
+# b = Var(np.array(2.0))
+# A = Add()
+# c = A(a, b)
+# print(c.value)
