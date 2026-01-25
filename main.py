@@ -8,18 +8,21 @@ class Var:
 
 class Function:
     def __call__(self, x):
-        y = self.forward(x)
+        x_value = x.value
+        y_value = self.forward(x_value)
+        y = Var(np.array(y_value))
         return y
 
-    def forward(self, x):
+    def forward(self, x_value):
         raise NotImplementedError()
 
 class Sin(Function):
-    def forward(self, x):
-        return np.sin(x)
+    def forward(self, x_value):
+        return np.sin(x_value)
 
 def sin(x):
     return Sin()(x)
 
-x = Var(np.array(100))
-print(x.value)
+x = Var(np.array(np.pi/2))
+y = sin(x)
+print(y.value)
