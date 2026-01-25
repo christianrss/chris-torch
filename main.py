@@ -12,6 +12,8 @@ class Var:
         self.producer = func
 
     def backward(self):
+        if self.grad is None:
+            self.grad = np.array(1.0)
         funcs = [self.producer]
         while funcs:
             func = funcs.pop()
@@ -61,7 +63,6 @@ def numerical_diff(f, x, h=1e-4):
 
 def gradient_check(f, x):
     y = f(x)
-    y.grad = np.array(1.0)
     y.backward()
     numerical_grad = numerical_diff(f, x)
     if not np.allclose(x.grad, numerical_grad):
