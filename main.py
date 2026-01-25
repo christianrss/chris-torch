@@ -52,21 +52,44 @@ class Sin(Function):
         gx = np.cos(x_value) * gy
         return gx
 
-def sin(x):
-    return Sin()(x)
+def numerical_diff(f, x, h=1e-4):
+    x0 = Var(np.array(x.value - h))
+    x1 = Var(np.array(x.value + h))
+    y0 = f(x0)
+    y1 = f(x1)
+    return (y1.value - y0.value) / (2 * h)
+
+def gradient_check(f, x):
+    y = f(x)
+    y.grad = np.array(1.0)
+    y.backward()
+    numerical_grad = numerical_diff(f, x)
+    if not np.allclose(x.grad, numerical_grad):
+        print('gradient check failed')
+
+def f(x):
+    s1 = Sin()
+    s2 = Sin()
+    return s2(s1(x))
+
+x = Var(np.array(np.pi / 2))
+gradient_check(f, x)
+
+# def sin(x):
+#     return Sin()(x)
 
 # x = np.array(2)
 # y = to_array(np.square(x))
 # print(y, type(y))
 
-x = Var(np.array(np.pi/2))
-s1 = Sin()
-s2 = Sin()
-y = s1(x)
-z = s2(y)
-
-z.grad = np.array(1.0)
-z.backward()
-# y.grad = s2.backward(z.grad)
-# x.grad = s1.backward(y.grad)
-print(x.grad)
+# x = Var(np.array(np.pi/2))
+# s1 = Sin()
+# s2 = Sin()
+# y = s1(x)
+# z = s2(y)
+#
+# z.grad = np.array(1.0)
+# z.backward()
+# # y.grad = s2.backward(z.grad)
+# # x.grad = s1.backward(y.grad)
+# print(x.grad)
