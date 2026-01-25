@@ -17,11 +17,14 @@ class Var:
         funcs = [self.producer]
         while funcs:
             func = funcs.pop()
-            x, y = func.input_var, func.output_var
-            x.grad = func.backward(y.grad)
+            gys = [output_var.grad for output_var in func.output_vars]
+            gxs = func.backward(*gys)
+            gxs = to_tuple(gxs)
 
-            if x.producer is not None:
-                funcs.append(x.producer)
+            for x, gx in zip(func.input_vars, gxs):
+                x.grad = gx
+                if x.producer is not None:
+                    funcs.append(x.producer)
 
 def to_array(x):
     if np.isscalar(x):
@@ -42,13 +45,13 @@ class Function:
         ys = [Var(to_array(y_value)) for y_value in y_values]
         for y in ys:
             y.link_producer(self)
-        self.output_var = ys
+        self.output_vars = ys
         return ys if  len(ys) > 1 else ys[0]
 
     def forward(self, *x_values):
         raise NotImplementedError()
 
-    def backward(self, gy):
+    def backward(self, *gys):
         raise NotImplementedError()
 
 class Sin(Function):
@@ -64,6 +67,9 @@ class Add(Function):
     def forward(self, x0, x1):
         y = x0 + x1
         return y
+
+    def backward(self, gy):
+        return gy, gy
 
 def numerical_diff(f, x, h=1e-4):
     x0 = Var(np.array(x.value - h))
@@ -84,11 +90,11 @@ def f(x):
     s2 = Sin()
     return s2(s1(x))
 
-# x = Var(np.array(np.pi / 2))
-# gradient_check(f, x)
+x = Var(np.array(np.pi / 2))
+gradient_check(f, x)
 
-a = Var(np.array(1.0))
-b = Var(np.array(2.0))
-A = Add()
-c = A(a, b)
-print(c.value)
+# a = Var(np.array(1.0))
+# b = Var(np.array(2.0))
+# A = Add()
+# c = A(a, b)
+# print(c.value)
