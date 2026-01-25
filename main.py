@@ -6,6 +6,20 @@ class Var:
             raise TypeError("The value must be a ndarray")
         self.value = value
         self.grad = None
+        self.producer = None
+
+    def link_producer(self, func):
+        self.producer = func
+
+    def backward(self):
+        funcs = [self.producer]
+        while funcs:
+            func = funcs.pop()
+            x, y = func.input_var, func.output_var
+            x.grad = func.backward(y.grad)
+
+            if x.producer is not None:
+                funcs.append(x.producer)
 
 def to_array(x):
     if np.isscalar(x):
@@ -19,6 +33,8 @@ class Function:
         y_value = self.forward(x_value)
         y_value = to_array(y_value)
         y = Var(y_value)
+        y.link_producer(self)
+        self.output_var = y
         return y
 
     def forward(self, x_value):
@@ -50,7 +66,7 @@ y = s1(x)
 z = s2(y)
 
 z.grad = np.array(1.0)
-y.grad = s2.backward(z.grad)
-s1.backward(y.grad)
-x.grad = s1.backward(y.grad)
+z.backward()
+# y.grad = s2.backward(z.grad)
+# x.grad = s1.backward(y.grad)
 print(x.grad)
