@@ -90,8 +90,13 @@ def f(x):
     s2 = Sin()
     return s2(s1(x))
 
-x = Var(np.array(np.pi / 2))
-gradient_check(f, x)
+def add(x0, x1):
+    return Add()(x0, x1)
+
+x0 = Var(np.array(2))
+x1 = Var(np.array(3))
+my_add = lambda x: add(x0, x)
+gradient_check(my_add, x1)
 
 # a = Var(np.array(1.0))
 # b = Var(np.array(2.0))
