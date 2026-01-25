@@ -22,9 +22,11 @@ class Var:
             gxs = to_tuple(gxs)
 
             for x, gx in zip(func.input_vars, gxs):
-                x.grad = gx
+                x.grad = gx if x.grad is None else x.grad + gx
                 if x.producer is not None:
                     funcs.append(x.producer)
+    def clear_grad(self):
+        self.grad = None
 
 def to_array(x):
     if np.isscalar(x):
@@ -90,8 +92,18 @@ def f(x):
     s2 = Sin()
     return s2(s1(x))
 
-x = Var(np.array(np.pi / 2))
-gradient_check(f, x)
+def add(x0, x1):
+    return Add()(x0, x1)
+
+x0 = Var(np.array(2))
+x1 = Var(np.array(3))
+my_add = lambda x: add(x, x)
+gradient_check(my_add, x0)
+
+x0.clear_grad()
+x1.clear_grad()
+my_add1 = lambda x: add(x, x1)
+gradient_check(my_add1, x0)
 
 # a = Var(np.array(1.0))
 # b = Var(np.array(2.0))
