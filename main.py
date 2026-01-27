@@ -1,3 +1,5 @@
+from tkinter import Variable
+
 import numpy as np
 
 def add_func(funcs, funcs_set, func):
@@ -14,6 +16,11 @@ class Var:
         self.grad = None
         self.producer = None
         self.level = 0
+
+    def __add__(self, other):
+        other = to_array(other)
+        other = to_var(other)
+        return Add()(self, other)
 
     def link_producer(self, func):
         self.producer = func
@@ -53,6 +60,11 @@ def to_tuple(x):
     if not isinstance(x, tuple):
         return (x, )
     return x
+
+def to_var(obj):
+    if not isinstance(obj, Var):
+        return Var(obj)
+    return obj
 
 class Function:
     def __call__(self, *xs):
@@ -116,10 +128,7 @@ def add(x0, x1):
     return Add()(x0, x1)
 
 def my_func(x):
-    y = sin(x)
-    z1 = sin(y)
-    z2 = sin(y)
-    return add(z1, z2)
+    return sin(x)+x
 
 x0 = Var(np.array(1.0))
 gradient_check(my_func, x0)
