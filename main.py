@@ -1,20 +1,46 @@
+from tkinter import Variable
+
 import numpy as np
 
+def add_func(funcs, funcs_set, func):
+    if func not in funcs_set:
+        funcs.append(func)
+        funcs_set.add(func)
+        funcs.sort(key=lambda x: x.level)
+
 class Var:
+    __array__priority = 1000000
+
     def __init__(self, value):
         if value is not None and not isinstance(value, np.ndarray):
             raise TypeError("The value must be a ndarray")
         self.value = value
         self.grad = None
         self.producer = None
+        self.level = 0
+
+    def __add__(self, other):
+        other = to_array(other)
+        other = to_var(other)
+        return Add()(self, other)
+
+    def __radd__(self, other):
+        other = to_array(other)
+        other = to_var(other)
+        return Add()(self, other)
 
     def link_producer(self, func):
         self.producer = func
+        self.level = func.level + 1
 
     def backward(self):
         if self.grad is None:
             self.grad = np.array(1.0)
-        funcs = [self.producer]
+
+        funcs = []
+        funcs_set = set()
+        add_func(funcs, funcs_set, self.producer)
+
         while funcs:
             func = funcs.pop()
             gys = [output_var.grad for output_var in func.output_vars]
@@ -24,7 +50,11 @@ class Var:
             for x, gx in zip(func.input_vars, gxs):
                 x.grad = gx if x.grad is None else x.grad + gx
                 if x.producer is not None:
-                    funcs.append(x.producer)
+                    add_func(funcs, funcs_set, x.producer)
+
+            for output_var in func.output_vars:
+                output_var.gard = None
+
     def clear_grad(self):
         self.grad = None
 
@@ -38,6 +68,11 @@ def to_tuple(x):
         return (x, )
     return x
 
+def to_var(obj):
+    if not isinstance(obj, Var):
+        return Var(obj)
+    return obj
+
 class Function:
     def __call__(self, *xs):
         self.input_vars = xs
@@ -45,10 +80,11 @@ class Function:
         y_values = self.forward(*x_values)
         y_values = to_tuple(y_values)
         ys = [Var(to_array(y_value)) for y_value in y_values]
+        self.level = max([x.level for x in xs])
         for y in ys:
             y.link_producer(self)
         self.output_vars = ys
-        return ys if  len(ys) > 1 else ys[0]
+        return ys if len(ys) > 1 else ys[0]
 
     def forward(self, *x_values):
         raise NotImplementedError()
@@ -73,6 +109,9 @@ class Add(Function):
     def backward(self, gy):
         return gy, gy
 
+def sin(x):
+    return Sin()(x)
+
 def numerical_diff(f, x, h=1e-4):
     x0 = Var(np.array(x.value - h))
     x1 = Var(np.array(x.value + h))
@@ -95,18 +134,8 @@ def f(x):
 def add(x0, x1):
     return Add()(x0, x1)
 
-x0 = Var(np.array(2))
-x1 = Var(np.array(3))
-my_add = lambda x: add(x, x)
-gradient_check(my_add, x0)
+def my_func(x):
+    return np.array(3.0)+x
 
-x0.clear_grad()
-x1.clear_grad()
-my_add1 = lambda x: add(x, x1)
-gradient_check(my_add1, x0)
-
-# a = Var(np.array(1.0))
-# b = Var(np.array(2.0))
-# A = Add()
-# c = A(a, b)
-# print(c.value)
+x0 = Var(np.array(1.0))
+gradient_check(my_func, x0)
