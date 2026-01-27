@@ -9,6 +9,8 @@ def add_func(funcs, funcs_set, func):
         funcs.sort(key=lambda x: x.level)
 
 class Var:
+    __array__priority = 1000000
+
     def __init__(self, value):
         if value is not None and not isinstance(value, np.ndarray):
             raise TypeError("The value must be a ndarray")
@@ -18,6 +20,11 @@ class Var:
         self.level = 0
 
     def __add__(self, other):
+        other = to_array(other)
+        other = to_var(other)
+        return Add()(self, other)
+
+    def __radd__(self, other):
         other = to_array(other)
         other = to_var(other)
         return Add()(self, other)
@@ -128,7 +135,7 @@ def add(x0, x1):
     return Add()(x0, x1)
 
 def my_func(x):
-    return sin(x)+x
+    return np.array(3.0)+x
 
 x0 = Var(np.array(1.0))
 gradient_check(my_func, x0)
