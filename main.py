@@ -38,6 +38,9 @@ class Var:
                 if x.producer is not None:
                     add_func(funcs, funcs_set, x.producer)
 
+            for output_var in func.output_vars:
+                output_var.gard = None
+
     def clear_grad(self):
         self.grad = None
 
