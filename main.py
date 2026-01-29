@@ -39,6 +39,17 @@ class Var:
         other = to_var(other)
         return Sub()(self, other)
 
+    def __mul__(self, other):
+        other = to_array(other)
+        other = to_var(other)
+        return Mul()(self, other)
+
+    def __rmul__(self, other):
+        other = to_array(other)
+        other = to_var(other)
+        return Mul()(self, other)
+
+
     def link_producer(self, func):
         self.producer = func
         self.level = func.level + 1
@@ -127,6 +138,14 @@ class Sub(Function):
     def backward(self, gy):
         return gy, -gy
 
+class Mul(Function):
+    def forward(self, x0, x1):
+        y = x0 * x1
+        return y
+
+    def backward(self, gy):
+        x0, x1 = self.input_vars[0].value, self.input_vars[1].value
+        return gy * x1, gy * x0
 
 def sin(x):
     return Sin()(x)
@@ -154,7 +173,7 @@ def add(x0, x1):
     return Add()(x0, x1)
 
 def my_func(x):
-    return np.array(3.0)-x
+    return np.array(3.0)*x
 
 x0 = Var(np.array(1.0))
 gradient_check(my_func, x0)
