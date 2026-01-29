@@ -59,6 +59,8 @@ class Var:
         other = to_var(other)
         return Div()(other, self)
 
+    def __neg__(self):
+        return Neg()(self)
 
     def link_producer(self, func):
         self.producer = func
@@ -166,6 +168,13 @@ class Div(Function):
         x0, x1 = self.input_vars[0].value, self.input_vars[1].value
         return gy / x1, gy * (-x0 / x1 ** 2)
 
+class Neg(Function):
+    def forward(self, x):
+        return -x
+
+    def backward(self, gy):
+        return -gy
+
 def sin(x):
     return Sin()(x)
 
@@ -192,7 +201,7 @@ def add(x0, x1):
     return Add()(x0, x1)
 
 def my_func(x):
-    return np.array(3.0)/x
+    return -x
 
 x0 = Var(np.array(1.0))
 gradient_check(my_func, x0)
