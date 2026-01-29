@@ -29,6 +29,42 @@ class Var:
         other = to_var(other)
         return Add()(self, other)
 
+    def __sub__(self, other):
+        other = to_array(other)
+        other = to_var(other)
+        return Sub()(other, self)
+
+    def __rsub__(self, other):
+        other = to_array(other)
+        other = to_var(other)
+        return Sub()(self, other)
+
+    def __mul__(self, other):
+        other = to_array(other)
+        other = to_var(other)
+        return Mul()(self, other)
+
+    def __rmul__(self, other):
+        other = to_array(other)
+        other = to_var(other)
+        return Mul()(self, other)
+
+    def __truediv__(self, other):
+        other = to_array(other)
+        other = to_var(other)
+        return Div()(self, other)
+
+    def __rtruediv__(self, other):
+        other = to_array(other)
+        other = to_var(other)
+        return Div()(other, self)
+
+    def __neg__(self):
+        return Neg()(self)
+
+    def __pow__(self, exp):
+        return Pow(exp)(self)
+
     def link_producer(self, func):
         self.producer = func
         self.level = func.level + 1
@@ -109,6 +145,52 @@ class Add(Function):
     def backward(self, gy):
         return gy, gy
 
+class Sub(Function):
+    def forward(self, x0, x1):
+        y = x0 - x1
+        return y
+
+    def backward(self, gy):
+        return gy, -gy
+
+class Mul(Function):
+    def forward(self, x0, x1):
+        y = x0 * x1
+        return y
+
+    def backward(self, gy):
+        x0, x1 = self.input_vars[0].value, self.input_vars[1].value
+        return gy * x1, gy * x0
+
+class Div(Function):
+    def forward(self, x0, x1):
+        y = x0 / x1
+        return y
+
+    def backward(self, gy):
+        x0, x1 = self.input_vars[0].value, self.input_vars[1].value
+        return gy / x1, gy * (-x0 / x1 ** 2)
+
+class Neg(Function):
+    def forward(self, x):
+        return -x
+
+    def backward(self, gy):
+        return -gy
+
+class Pow(Function):
+    def __init__(self, exp):
+        self.exp = exp
+
+    def forward(self, x):
+        y = x ** self.exp
+        return y
+
+    def backward(self, gy):
+        x = self.input_vars[0].value
+        n = self.exp
+        return n * x ** (n - 1) * gy
+
 def sin(x):
     return Sin()(x)
 
@@ -135,7 +217,7 @@ def add(x0, x1):
     return Add()(x0, x1)
 
 def my_func(x):
-    return np.array(3.0)+x
+    return x ** 5
 
 x0 = Var(np.array(1.0))
 gradient_check(my_func, x0)
