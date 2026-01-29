@@ -62,6 +62,9 @@ class Var:
     def __neg__(self):
         return Neg()(self)
 
+    def __pow__(self, exp):
+        return Pow(exp)(self)
+
     def link_producer(self, func):
         self.producer = func
         self.level = func.level + 1
@@ -175,6 +178,19 @@ class Neg(Function):
     def backward(self, gy):
         return -gy
 
+class Pow(Function):
+    def __init__(self, exp):
+        self.exp = exp
+
+    def forward(self, x):
+        y = x ** self.exp
+        return y
+
+    def backward(self, gy):
+        x = self.input_vars[0].value
+        n = self.exp
+        return n * x ** (n - 1) * gy
+
 def sin(x):
     return Sin()(x)
 
@@ -201,7 +217,7 @@ def add(x0, x1):
     return Add()(x0, x1)
 
 def my_func(x):
-    return -x
+    return x ** 5
 
 x0 = Var(np.array(1.0))
 gradient_check(my_func, x0)
