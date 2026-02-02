@@ -71,7 +71,7 @@ class Var:
 
     def backward(self):
         if self.grad is None:
-            self.grad = np.array(1.0)
+            self.grad = np.ones_like(self.value)
 
         funcs = []
         funcs_set = set()
