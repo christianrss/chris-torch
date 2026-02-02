@@ -71,7 +71,7 @@ class Var:
 
     def backward(self):
         if self.grad is None:
-            self.grad = np.array(1.0)
+            self.grad = np.ones_like(self.value)
 
         funcs = []
         funcs_set = set()
@@ -93,6 +93,11 @@ class Var:
 
     def clear_grad(self):
         self.grad = None
+
+    def reshape(self, *shape):
+        if len(shape) == 1 and isinstance(shape[0], (tuple, list)):
+            shape = shape[0]
+        return Reshape(shape)(self)
 
 def to_array(x):
     if np.isscalar(x):
@@ -191,6 +196,19 @@ class Pow(Function):
         n = self.exp
         return n * x ** (n - 1) * gy
 
+class Reshape(Function):
+    def __init__(self, shape):
+        self.shape = shape
+        self.input_shape = None
+
+    def forward(self, x):
+        self.input_shape = x.shape
+        y = x.reshape(self.shape)
+        return y
+
+    def backward(self, gy):
+        return gy.reshape(self.input_shape)
+
 def sin(x):
     return Sin()(x)
 
@@ -219,5 +237,8 @@ def add(x0, x1):
 def my_func(x):
     return x ** 5
 
-x0 = Var(np.array(1.0))
-gradient_check(my_func, x0)
+x0 = Var(np.array([[1,2,3],[4,5,6]]))
+y = x0.reshape(6)
+y.backward()
+print(x0.grad)
+# gradient_check(my_func, x0)
