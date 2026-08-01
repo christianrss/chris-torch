@@ -245,6 +245,35 @@ class Reshape(Function):
     def backward(self, gy):
         return gy.reshape(self.input_shape)
 
+def sum_backward_shape(gy, x_shape, axis, keepdims):
+    x_dim = len(x_shape)
+    if x_dim > 0 and axis is not None and not keepdims:
+        axis = to_tuple(axis)
+        axis = [a if a >= 0 else a + x_dim for a in axis]
+        shape = list(gy.shape)
+        for a in sorted(axis):
+            shape.insert(a, 1)
+    else:
+        shape = gy.shape
+
+    return shape
+
+class Sum(Function):
+    def __init__(self, axis=None, keepdims=False):
+        self.axis = axis
+        self.keepdims = keepdims
+
+    def forward(self, x):
+        self.x_shape = x.shape
+        y = x.sum(axis=self.axis, keepdims=self.keepdims)
+        return y
+
+    def backward(self, gy):
+        gy_shape = sum_backward_shape(gy, self.x_shape, self.axis, self.keepdims)
+        gy = gy.reshape(gy_shape)
+        gx = np.broadcast_to(gy, self.x_shape)
+        return gx
+
 def sin(x):
     return Sin()(x)
 
@@ -285,7 +314,7 @@ def add(x0, x1):
     return Add()(x0, x1)
 
 def my_func(x):
-    return x.reshape(6)
+    return Sum()(x)
 
 x0 = Var(np.array([[1.0,2.0,3.0],[4.0,5.0,6.0]]))
 x1 = Var(np.array([10.0]))
@@ -294,4 +323,4 @@ my_add = lambda x: add(x0, x)
 # y.backward()
 # print(x0.grad)
 # gradient_check(my_func, x0)
-gradient_check(my_add, x1)
+gradient_check(my_func, x0)
