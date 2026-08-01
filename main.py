@@ -8,8 +8,24 @@ def add_func(funcs, funcs_set, func):
         funcs_set.add(func)
         funcs.sort(key=lambda x: x.level)
 
+def sum_to(x, out_shape):
+    delta_dim = x.ndim - len(out_shape)
+    if delta_dim < 0:
+        raise ValueError('sum cannot the specific shape, the current input shape is less than the output one')
+
+    delta_axis = tuple(range(delta_dim))
+    axis = tuple([i + delta_dim for i, s in enumerate(out_shape) if s == 1])
+    y = x.sum(delta_axis + axis, keepdims=True)
+    if delta_dim > 0:
+        y = y.squeeze(delta_axis)
+
+    if y.shape != out_shape:
+        raise ValueError('sum cannot output the specific shape')
+
+    return y
+
 class Var:
-    __array__priority = 1000000
+    __array_priority__ = 1000000
 
     def __init__(self, value):
         if value is not None and not isinstance(value, np.ndarray):
@@ -144,19 +160,29 @@ class Sin(Function):
 
 class Add(Function):
     def forward(self, x0, x1):
+        self.x0_shape, self.x1_shape= x0.shape, x1.shape
         y = x0 + x1
         return y
 
     def backward(self, gy):
-        return gy, gy
+        gx0, gx1 = gy, gy
+        if self.x0_shape!= self.x1_shape:
+            gx0 = sum_to(gx0, self.x0_shape)
+            gx1 = sum_to(gx1, self.x1_shape)
+        return gx0, gx1
 
 class Sub(Function):
     def forward(self, x0, x1):
+        self.x0_shape, self.x1_shape = x0.shape, x1.shape
         y = x0 - x1
         return y
 
     def backward(self, gy):
-        return gy, -gy
+        gx0, gx1 = gy, -gy
+        if self.x0_shape!= self.x1_shape:
+            gx0 = sum_to(gx0, self.x0_shape)
+            gx1 = sum_to(gx1, self.x1_shape)
+        return gx0, gx1
 
 class Mul(Function):
     def forward(self, x0, x1):
@@ -165,7 +191,12 @@ class Mul(Function):
 
     def backward(self, gy):
         x0, x1 = self.input_vars[0].value, self.input_vars[1].value
-        return gy * x1, gy * x0
+        gx0 = gy * x1
+        gx1 = gy * x0
+        if x0.shape!= x1.shape:
+            gx0 = sum_to(gx0, x0.shape)
+            gx1 = sum_to(gx1, x1.shape)
+        return gx0, gx1
 
 class Div(Function):
     def forward(self, x0, x1):
@@ -174,7 +205,12 @@ class Div(Function):
 
     def backward(self, gy):
         x0, x1 = self.input_vars[0].value, self.input_vars[1].value
-        return gy / x1, gy * (-x0 / x1 ** 2)
+        gx0 = gy / x1
+        gx1 = gy * (-x0 / x1 ** 2)
+        if x0.shape!= x1.shape:
+            gx0 = sum_to(gx0, x0.shape)
+            gx1 = sum_to(gx1, x1.shape)
+        return gx0, gx1
 
 class Neg(Function):
     def forward(self, x):
@@ -252,8 +288,10 @@ def my_func(x):
     return x.reshape(6)
 
 x0 = Var(np.array([[1.0,2.0,3.0],[4.0,5.0,6.0]]))
+x1 = Var(np.array([10.0]))
+my_add = lambda x: add(x0, x)
 # y = x0.reshape(6)
 # y.backward()
 # print(x0.grad)
 # gradient_check(my_func, x0)
-gradient_check(my_func, x0)
+gradient_check(my_add, x1)
