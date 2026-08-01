@@ -213,11 +213,25 @@ def sin(x):
     return Sin()(x)
 
 def numerical_diff(f, x, h=1e-4):
-    x0 = Var(np.array(x.value - h))
-    x1 = Var(np.array(x.value + h))
-    y0 = f(x0)
-    y1 = f(x1)
-    return (y1.value - y0.value) / (2 * h)
+    x_value = x.value
+    grads = np.zeros_like(x_value)
+    it = np.nditer(x_value, flags=['multi_index'], op_flags=[['readwrite']])
+
+    while not it.finished:
+        idx = it.multi_index
+        tmp_val = x_value[idx].copy()
+        x_value[idx] = tmp_val - h
+        y0 = f(x)
+        y0_value = y0.value.copy()
+
+        x_value[idx] = tmp_val + h
+        y1 = f(x)
+        y1_value = y1.value.copy()
+        grads[idx] = (y1_value - y0_value).sum() / (2 * h)
+        x_value[idx] = tmp_val
+        it.iternext()
+
+    return grads
 
 def gradient_check(f, x):
     y = f(x)
@@ -235,10 +249,11 @@ def add(x0, x1):
     return Add()(x0, x1)
 
 def my_func(x):
-    return x ** 5
+    return x.reshape(6)
 
-x0 = Var(np.array([[1,2,3],[4,5,6]]))
-y = x0.reshape(6)
-y.backward()
-print(x0.grad)
+x0 = Var(np.array([[1.0,2.0,3.0],[4.0,5.0,6.0]]))
+# y = x0.reshape(6)
+# y.backward()
+# print(x0.grad)
+# gradient_check(my_func, x0)
 gradient_check(my_func, x0)
