@@ -115,6 +115,15 @@ class Var:
             shape = shape[0]
         return Reshape(shape)(self)
 
+    def transpose(self, *axes):
+        if len(axes) == 0:
+            axes = None
+        elif len(axes) == 1:
+            if isinstance(axes[0], (tuple, list)) or axes[0] is None:
+                axes = axes[0]
+        return Transpose(axes)(self)
+
+
 def to_array(x):
     if np.isscalar(x):
         return np.array(x)
@@ -285,6 +294,22 @@ class MatMul(Function):
         gW = np.dot(x.T, gy)
         return gx, gW
 
+class Transpose(Function):
+    def __init__(self, axes=None):
+        self.axes = axes
+
+    def forward(self, x):
+        y = x.transpose(self.axes)
+        return y
+
+    def backward(self, gy):
+        if self.axes is None:
+            return gy.transpose()
+
+        axes_index = np.argsort([axis if axis >= 0 else axis + len(self.axes) for axis in self.axes])
+        return gy.transpose(axes_index)
+
+
 def sin(x):
     return Sin()(x)
 
@@ -324,16 +349,16 @@ def f(x):
 def add(x0, x1):
     return Add()(x0, x1)
 
-def my_func(x, W):
-    return MatMul()(x, W)
+def my_func(x):
+    return x.transpose(2, 1, 0)
 
-x0 = Var(np.array([[1.0,2.0,3.0],[4.0,5.0,6.0]]))
-x1 = Var(np.array([[1.0,2.0],[4.0,5.0], [10.0, 15.0]]))
-my_mul = lambda x: my_func(x, x1)
+x0 = Var(np.random.randn(2, 3, 5))
+# x1 = Var(np.array([[1.0,2.0],[4.0,5.0], [10.0, 15.0]]))
+# my_mul = lambda x: my_func(x, x1)
 # x1 = Var(np.array([10.0]))
 # my_add = lambda x: add(x0, x)
 # y = x0.reshape(6)
 # y.backward()
 # print(x0.grad)
 # gradient_check(my_func, x0)
-gradient_check(my_mul, x0)
+gradient_check(my_func, x0)
