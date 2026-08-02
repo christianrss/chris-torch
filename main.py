@@ -105,7 +105,7 @@ class Var:
                     add_func(funcs, funcs_set, x.producer)
 
             for output_var in func.output_vars:
-                output_var.gard = None
+                output_var.grad = None
 
     def clear_grad(self):
         self.grad = None
@@ -274,6 +274,17 @@ class Sum(Function):
         gx = np.broadcast_to(gy, self.x_shape)
         return gx
 
+class MatMul(Function):
+    def forward(self, x, W):
+        y = np.dot(x, W)
+        return y
+
+    def backward(self, gy):
+        x, W = self.input_vars[0].value, self.input_vars[1].value
+        gx = np.dot(gy, W.T)
+        gW = np.dot(x.T, gy)
+        return gx, gW
+
 def sin(x):
     return Sin()(x)
 
@@ -313,14 +324,16 @@ def f(x):
 def add(x0, x1):
     return Add()(x0, x1)
 
-def my_func(x):
-    return Sum()(x)
+def my_func(x, W):
+    return MatMul()(x, W)
 
 x0 = Var(np.array([[1.0,2.0,3.0],[4.0,5.0,6.0]]))
-x1 = Var(np.array([10.0]))
-my_add = lambda x: add(x0, x)
+x1 = Var(np.array([[1.0,2.0],[4.0,5.0], [10.0, 15.0]]))
+my_mul = lambda x: my_func(x, x1)
+# x1 = Var(np.array([10.0]))
+# my_add = lambda x: add(x0, x)
 # y = x0.reshape(6)
 # y.backward()
 # print(x0.grad)
 # gradient_check(my_func, x0)
-gradient_check(my_func, x0)
+gradient_check(my_mul, x0)
