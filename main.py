@@ -8,8 +8,24 @@ def add_func(funcs, funcs_set, func):
         funcs_set.add(func)
         funcs.sort(key=lambda x: x.level)
 
+def sum_to(x, out_shape):
+    delta_dim = x.ndim - len(out_shape)
+    if delta_dim < 0:
+        raise ValueError('sum cannot the specific shape, the current input shape is less than the output one')
+
+    delta_axis = tuple(range(delta_dim))
+    axis = tuple([i + delta_dim for i, s in enumerate(out_shape) if s == 1])
+    y = x.sum(delta_axis + axis, keepdims=True)
+    if delta_dim > 0:
+        y = y.squeeze(delta_axis)
+
+    if y.shape != out_shape:
+        raise ValueError('sum cannot output the specific shape')
+
+    return y
+
 class Var:
-    __array__priority = 1000000
+    __array_priority__ = 1000000
 
     def __init__(self, value):
         if value is not None and not isinstance(value, np.ndarray):
@@ -89,7 +105,7 @@ class Var:
                     add_func(funcs, funcs_set, x.producer)
 
             for output_var in func.output_vars:
-                output_var.gard = None
+                output_var.grad = None
 
     def clear_grad(self):
         self.grad = None
@@ -98,6 +114,15 @@ class Var:
         if len(shape) == 1 and isinstance(shape[0], (tuple, list)):
             shape = shape[0]
         return Reshape(shape)(self)
+
+    def transpose(self, *axes):
+        if len(axes) == 0:
+            axes = None
+        elif len(axes) == 1:
+            if isinstance(axes[0], (tuple, list)) or axes[0] is None:
+                axes = axes[0]
+        return Transpose(axes)(self)
+
 
 def to_array(x):
     if np.isscalar(x):
@@ -144,19 +169,29 @@ class Sin(Function):
 
 class Add(Function):
     def forward(self, x0, x1):
+        self.x0_shape, self.x1_shape= x0.shape, x1.shape
         y = x0 + x1
         return y
 
     def backward(self, gy):
-        return gy, gy
+        gx0, gx1 = gy, gy
+        if self.x0_shape!= self.x1_shape:
+            gx0 = sum_to(gx0, self.x0_shape)
+            gx1 = sum_to(gx1, self.x1_shape)
+        return gx0, gx1
 
 class Sub(Function):
     def forward(self, x0, x1):
+        self.x0_shape, self.x1_shape = x0.shape, x1.shape
         y = x0 - x1
         return y
 
     def backward(self, gy):
-        return gy, -gy
+        gx0, gx1 = gy, -gy
+        if self.x0_shape!= self.x1_shape:
+            gx0 = sum_to(gx0, self.x0_shape)
+            gx1 = sum_to(gx1, self.x1_shape)
+        return gx0, gx1
 
 class Mul(Function):
     def forward(self, x0, x1):
@@ -165,7 +200,12 @@ class Mul(Function):
 
     def backward(self, gy):
         x0, x1 = self.input_vars[0].value, self.input_vars[1].value
-        return gy * x1, gy * x0
+        gx0 = gy * x1
+        gx1 = gy * x0
+        if x0.shape!= x1.shape:
+            gx0 = sum_to(gx0, x0.shape)
+            gx1 = sum_to(gx1, x1.shape)
+        return gx0, gx1
 
 class Div(Function):
     def forward(self, x0, x1):
@@ -174,7 +214,12 @@ class Div(Function):
 
     def backward(self, gy):
         x0, x1 = self.input_vars[0].value, self.input_vars[1].value
-        return gy / x1, gy * (-x0 / x1 ** 2)
+        gx0 = gy / x1
+        gx1 = gy * (-x0 / x1 ** 2)
+        if x0.shape!= x1.shape:
+            gx0 = sum_to(gx0, x0.shape)
+            gx1 = sum_to(gx1, x1.shape)
+        return gx0, gx1
 
 class Neg(Function):
     def forward(self, x):
@@ -196,6 +241,15 @@ class Pow(Function):
         n = self.exp
         return n * x ** (n - 1) * gy
 
+class Exp(Function):
+    def forward(self, x):
+        y = np.exp(x)
+        return y
+
+    def backward(self, gy):
+        y = self.output_vars[0].value
+        return y * gy
+
 class Reshape(Function):
     def __init__(self, shape):
         self.shape = shape
@@ -209,15 +263,85 @@ class Reshape(Function):
     def backward(self, gy):
         return gy.reshape(self.input_shape)
 
+def sum_backward_shape(gy, x_shape, axis, keepdims):
+    x_dim = len(x_shape)
+    if x_dim > 0 and axis is not None and not keepdims:
+        axis = to_tuple(axis)
+        axis = [a if a >= 0 else a + x_dim for a in axis]
+        shape = list(gy.shape)
+        for a in sorted(axis):
+            shape.insert(a, 1)
+    else:
+        shape = gy.shape
+
+    return shape
+
+class Sum(Function):
+    def __init__(self, axis=None, keepdims=False):
+        self.axis = axis
+        self.keepdims = keepdims
+
+    def forward(self, x):
+        self.x_shape = x.shape
+        y = x.sum(axis=self.axis, keepdims=self.keepdims)
+        return y
+
+    def backward(self, gy):
+        gy_shape = sum_backward_shape(gy, self.x_shape, self.axis, self.keepdims)
+        gy = gy.reshape(gy_shape)
+        gx = np.broadcast_to(gy, self.x_shape)
+        return gx
+
+class MatMul(Function):
+    def forward(self, x, W):
+        y = np.dot(x, W)
+        return y
+
+    def backward(self, gy):
+        x, W = self.input_vars[0].value, self.input_vars[1].value
+        gx = np.dot(gy, W.T)
+        gW = np.dot(x.T, gy)
+        return gx, gW
+
+class Transpose(Function):
+    def __init__(self, axes=None):
+        self.axes = axes
+
+    def forward(self, x):
+        y = x.transpose(self.axes)
+        return y
+
+    def backward(self, gy):
+        if self.axes is None:
+            return gy.transpose()
+
+        axes_index = np.argsort([axis if axis >= 0 else axis + len(self.axes) for axis in self.axes])
+        return gy.transpose(axes_index)
+
+
 def sin(x):
     return Sin()(x)
 
 def numerical_diff(f, x, h=1e-4):
-    x0 = Var(np.array(x.value - h))
-    x1 = Var(np.array(x.value + h))
-    y0 = f(x0)
-    y1 = f(x1)
-    return (y1.value - y0.value) / (2 * h)
+    x_value = x.value
+    grads = np.zeros_like(x_value)
+    it = np.nditer(x_value, flags=['multi_index'], op_flags=[['readwrite']])
+
+    while not it.finished:
+        idx = it.multi_index
+        tmp_val = x_value[idx].copy()
+        x_value[idx] = tmp_val - h
+        y0 = f(x)
+        y0_value = y0.value.copy()
+
+        x_value[idx] = tmp_val + h
+        y1 = f(x)
+        y1_value = y1.value.copy()
+        grads[idx] = (y1_value - y0_value).sum() / (2 * h)
+        x_value[idx] = tmp_val
+        it.iternext()
+
+    return grads
 
 def gradient_check(f, x):
     y = f(x)
@@ -235,10 +359,15 @@ def add(x0, x1):
     return Add()(x0, x1)
 
 def my_func(x):
-    return x ** 5
+    return Exp()(x)
 
-x0 = Var(np.array([[1,2,3],[4,5,6]]))
-y = x0.reshape(6)
-y.backward()
-print(x0.grad)
+x0 = Var(np.random.randn(2, 3, 5))
+# x1 = Var(np.array([[1.0,2.0],[4.0,5.0], [10.0, 15.0]]))
+# my_mul = lambda x: my_func(x, x1)
+# x1 = Var(np.array([10.0]))
+# my_add = lambda x: add(x0, x)
+# y = x0.reshape(6)
+# y.backward()
+# print(x0.grad)
+# gradient_check(my_func, x0)
 gradient_check(my_func, x0)
