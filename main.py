@@ -241,6 +241,15 @@ class Pow(Function):
         n = self.exp
         return n * x ** (n - 1) * gy
 
+class Exp(Function):
+    def forward(self, x):
+        y = np.exp(x)
+        return y
+
+    def backward(self, gy):
+        y = self.output_vars[0].value
+        return y * gy
+
 class Reshape(Function):
     def __init__(self, shape):
         self.shape = shape
@@ -350,7 +359,7 @@ def add(x0, x1):
     return Add()(x0, x1)
 
 def my_func(x):
-    return x.transpose(2, 1, 0)
+    return Exp()(x)
 
 x0 = Var(np.random.randn(2, 3, 5))
 # x1 = Var(np.array([[1.0,2.0],[4.0,5.0], [10.0, 15.0]]))
