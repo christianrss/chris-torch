@@ -1,4 +1,4 @@
-from tkinter import Variable
+from backend.acpp import matmul
 
 import numpy as np
 
@@ -292,16 +292,36 @@ class Sum(Function):
         gx = np.broadcast_to(gy, self.x_shape)
         return gx
 
+# Acpp matmul
 class MatMul(Function):
     def forward(self, x, W):
-        y = np.dot(x, W)
-        return y
+        return matmul(x, W)
 
     def backward(self, gy):
-        x, W = self.input_vars[0].value, self.input_vars[1].value
-        gx = np.dot(gy, W.T)
-        gW = np.dot(x.T, gy)
+        x = self.input_vars[0].value
+        W = self.input_vars[1].value
+
+        gx = matmul(
+            gy,
+            np.ascontiguousarray(W.T)
+        )
+
+        gW = matmul(
+            np.ascontiguousarray(x.T),
+            gy
+        )
+
         return gx, gW
+# class MatMul(Function):
+#     def forward(self, x, W):
+#         y = np.dot(x, W)
+#         return y
+
+#     def backward(self, gy):
+#         x, W = self.input_vars[0].value, self.input_vars[1].value
+#         gx = np.dot(gy, W.T)
+#         gW = np.dot(x.T, gy)
+#         return gx, gW
 
 class Transpose(Function):
     def __init__(self, axes=None):
@@ -361,7 +381,7 @@ def add(x0, x1):
 def my_func(x):
     return Exp()(x)
 
-x0 = Var(np.random.randn(2, 3, 5))
+# x0 = Var(np.random.randn(2, 3, 5))
 # x1 = Var(np.array([[1.0,2.0],[4.0,5.0], [10.0, 15.0]]))
 # my_mul = lambda x: my_func(x, x1)
 # x1 = Var(np.array([10.0]))
@@ -370,4 +390,35 @@ x0 = Var(np.random.randn(2, 3, 5))
 # y.backward()
 # print(x0.grad)
 # gradient_check(my_func, x0)
-gradient_check(my_func, x0)
+# gradient_check(my_func, x0)
+
+A = np.array(
+    [
+        [1, 2, 3],
+        [4, 5, 6],
+    ],
+    dtype=np.float32
+)
+
+B = np.array(
+    [
+        [1, 2],
+        [3, 4],
+        [5, 6],
+    ],
+    dtype=np.float32
+)
+
+
+expected = A @ B
+actual = matmul(A, B)
+
+print("NumPy:")
+print(expected)
+
+print("AdaptiveCpp:")
+print(actual)
+
+assert np.allclose(expected, actual)
+
+print("PASS")
