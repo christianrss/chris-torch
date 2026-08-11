@@ -370,55 +370,75 @@ def gradient_check(f, x):
     if not np.allclose(x.grad, numerical_grad):
         print('gradient check failed')
 
-def f(x):
-    s1 = Sin()
-    s2 = Sin()
-    return s2(s1(x))
+# def f(x):
+#     s1 = Sin()
+#     s2 = Sin()
+#     return s2(s1(x))
 
-def add(x0, x1):
-    return Add()(x0, x1)
+# def add(x0, x1):
+#     return Add()(x0, x1)
 
-def my_func(x):
-    return Exp()(x)
+# def my_func(x):
+#     return Exp()(x)
 
-# x0 = Var(np.random.randn(2, 3, 5))
-# x1 = Var(np.array([[1.0,2.0],[4.0,5.0], [10.0, 15.0]]))
-# my_mul = lambda x: my_func(x, x1)
-# x1 = Var(np.array([10.0]))
-# my_add = lambda x: add(x0, x)
-# y = x0.reshape(6)
-# y.backward()
-# print(x0.grad)
-# gradient_check(my_func, x0)
-# gradient_check(my_func, x0)
+# # x0 = Var(np.random.randn(2, 3, 5))
+# # x1 = Var(np.array([[1.0,2.0],[4.0,5.0], [10.0, 15.0]]))
+# # my_mul = lambda x: my_func(x, x1)
+# # x1 = Var(np.array([10.0]))
+# # my_add = lambda x: add(x0, x)
+# # y = x0.reshape(6)
+# # y.backward()
+# # print(x0.grad)
+# # gradient_check(my_func, x0)
+# # gradient_check(my_func, x0)
 
-A = np.array(
-    [
-        [1, 2, 3],
-        [4, 5, 6],
-    ],
-    dtype=np.float32
-)
+# A = np.array(
+#     [
+#         [1, 2, 3],
+#         [4, 5, 6],
+#     ],
+#     dtype=np.float32
+# )
 
-B = np.array(
-    [
-        [1, 2],
-        [3, 4],
-        [5, 6],
-    ],
-    dtype=np.float32
-)
+# B = np.array(
+#     [
+#         [1, 2],
+#         [3, 4],
+#         [5, 6],
+#     ],
+#     dtype=np.float32
+# )
 
 
-expected = A @ B
-actual = matmul(A, B)
+# expected = A @ B
+# actual = matmul(A, B)
 
-print("NumPy:")
-print(expected)
+# print("NumPy:")
+# print(expected)
 
-print("AdaptiveCpp:")
-print(actual)
+# print("AdaptiveCpp:")
+# print(actual)
 
-assert np.allclose(expected, actual)
+# assert np.allclose(expected, actual)
 
-print("PASS")
+# print("PASS")
+
+def linear(x, w, b=None):
+    temp = MatMul()(x, w)
+    if b is None:
+        return temp
+
+    y = temp + b
+    return y
+
+def sigmoid(x):
+    x = to_var(x)
+    y = 1 / (1 + Exp()(-x))
+    return y
+
+np.random.seed(0)
+x0 = Var(np.random.randn(2,3))
+W = Var(np.random.randn(3,4))
+b = Var(np.zeros(4))
+z = linear(x0, W, b)
+z = sigmoid(z)
