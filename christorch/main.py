@@ -35,6 +35,10 @@ class Var:
         self.producer = None
         self.level = 0
 
+    @property 
+    def shape(self):
+        return self.value.shape
+
     def __len__(self):
         return len(self.value)
 
@@ -509,6 +513,18 @@ class Linear(Module):
         y = linear(x, self.Weight, self.Bias)
         return y
 
+class MyNet(Module):
+    def __init__(self, hidden_size, out_size):
+        super().__init__()
+        self.l1 = Linear(hidden_size)
+        self.l2 = Linear(out_size)
+
+    def forward(self, x):
+        z = self.l1(x)
+        z = sigmoid(z)
+        z = self.l2(z)
+        return z
+
 lr = 0.01
 iters = 5000
 
@@ -516,26 +532,16 @@ np.random.seed(0)
 x = Var(np.random.randn(1000, 1))
 y = np.square(x) + np.random.randn(1000, 1)
 
-W1 = Var(np.random.randn(1,4))
-b1 = Var(np.zeros(4))
-W2 = Var(np.random.randn(4,1))
-b2 = Var(np.zeros(1))
+model = MyNet(10, 1)
 
 for i in range(iters):
-    y_pred = network(x)
+    y_pred = model(x)
     loss = mean_squared_error(y, y_pred)
-
-    W1.clear_grad()
-    b1.clear_grad()
-    W2.clear_grad()
-    b2.clear_grad()
-
+    model.clear_grads()
     loss.backward()
 
-    W1.value -= lr * W1.grad
-    b1.value -= lr * b1.grad
-    W2.value -= lr * W2.grad
-    b2.value -= lr * b2.grad
+    for p in model.params():
+        p.value -= lr * p.grad
 
     if i % 500 == 0:
         print(loss.value)
