@@ -449,7 +449,18 @@ def network(x):
     z = linear(z, W2, b2)
     return z
 
+class Param(Var):
+    pass
+
 class Module:
+    def __init__(self):
+        self._params = set()
+
+    def __setattr__(self, name, value):
+        if isinstance(value, (Param, Module)):
+            self._params.add(name)
+        super().__setattr__(name, value)
+
     def __call__(self, *xs):
         self.input_vars = xs
         ys = self.forward(*xs)
@@ -460,6 +471,17 @@ class Module:
     def forward(self, *xs):
         raise NotImplementedError()
 
+    def params(self):
+        for name in self._params:
+            p = self.__dict__[name]
+            if isinstance(p, Module):
+                yield from p.params()
+            else:
+                yield p
+
+    def clear_grads(self):
+        for param in self.params():
+            param.clear_grad()
 
 lr = 0.01
 iters = 5000
