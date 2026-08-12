@@ -35,6 +35,13 @@ class Var:
         self.producer = None
         self.level = 0
 
+    @property
+    def shape(self):
+        return self.value.shape
+
+    def __len__(self):
+        return len(self.value)
+
     def __add__(self, other):
         other = to_array(other)
         other = to_var(other)
@@ -370,55 +377,171 @@ def gradient_check(f, x):
     if not np.allclose(x.grad, numerical_grad):
         print('gradient check failed')
 
-def f(x):
-    s1 = Sin()
-    s2 = Sin()
-    return s2(s1(x))
+# def f(x):
+#     s1 = Sin()
+#     s2 = Sin()
+#     return s2(s1(x))
 
-def add(x0, x1):
-    return Add()(x0, x1)
+# def add(x0, x1):
+#     return Add()(x0, x1)
 
-def my_func(x):
-    return Exp()(x)
+# def my_func(x):
+#     return Exp()(x)
 
-# x0 = Var(np.random.randn(2, 3, 5))
-# x1 = Var(np.array([[1.0,2.0],[4.0,5.0], [10.0, 15.0]]))
-# my_mul = lambda x: my_func(x, x1)
-# x1 = Var(np.array([10.0]))
-# my_add = lambda x: add(x0, x)
-# y = x0.reshape(6)
-# y.backward()
-# print(x0.grad)
-# gradient_check(my_func, x0)
-# gradient_check(my_func, x0)
+# # x0 = Var(np.random.randn(2, 3, 5))
+# # x1 = Var(np.array([[1.0,2.0],[4.0,5.0], [10.0, 15.0]]))
+# # my_mul = lambda x: my_func(x, x1)
+# # x1 = Var(np.array([10.0]))
+# # my_add = lambda x: add(x0, x)
+# # y = x0.reshape(6)
+# # y.backward()
+# # print(x0.grad)
+# # gradient_check(my_func, x0)
+# # gradient_check(my_func, x0)
 
-A = np.array(
-    [
-        [1, 2, 3],
-        [4, 5, 6],
-    ],
-    dtype=np.float32
-)
+# A = np.array(
+#     [
+#         [1, 2, 3],
+#         [4, 5, 6],
+#     ],
+#     dtype=np.float32
+# )
 
-B = np.array(
-    [
-        [1, 2],
-        [3, 4],
-        [5, 6],
-    ],
-    dtype=np.float32
-)
+# B = np.array(
+#     [
+#         [1, 2],
+#         [3, 4],
+#         [5, 6],
+#     ],
+#     dtype=np.float32
+# )
 
 
-expected = A @ B
-actual = matmul(A, B)
+# expected = A @ B
+# actual = matmul(A, B)
 
-print("NumPy:")
-print(expected)
+# print("NumPy:")
+# print(expected)
 
-print("AdaptiveCpp:")
-print(actual)
+# print("AdaptiveCpp:")
+# print(actual)
 
-assert np.allclose(expected, actual)
+# assert np.allclose(expected, actual)
 
-print("PASS")
+# print("PASS")
+
+def linear(x, w, b=None):
+    temp = MatMul()(x, w)
+    if b is None:
+        return temp
+
+    y = temp + b
+    return y
+
+def sigmoid(x):
+    x = to_var(x)
+    y = 1 / (1 + Exp()(-x))
+    return y
+
+def mean_squared_error(x0, x1):
+    diff = x0 - x1
+    return Sum()(diff ** 2) / len(diff)
+
+def network(x):
+    z = linear(x, W1, b1)
+    z = sigmoid(z)
+    z = linear(z, W2, b2)
+    return z
+
+class Param(Var):
+    pass
+
+class Module:
+    def __init__(self):
+        self._params = set()
+
+    def __setattr__(self, name, value):
+        if isinstance(value, (Param, Module)):
+            self._params.add(name)
+        super().__setattr__(name, value)
+
+    def __call__(self, *xs):
+        self.input_vars = xs
+        ys = self.forward(*xs)
+        ys = to_tuple(ys)
+        self.output_vars = ys
+        return ys if len(ys) > 1 else ys[0]
+
+    def forward(self, *xs):
+        raise NotImplementedError()
+
+    def params(self):
+        for name in self._params:
+            p = self.__dict__[name]
+            if isinstance(p, Module):
+                yield from p.params()
+            else:
+                yield p
+
+    def clear_grads(self):
+        for param in self.params():
+            param.clear_grad()
+
+class Linear(Module):
+    def __init__(self, out_size, in_size=None, bias=True):
+        super().__init__()
+        self.in_size = in_size
+        self.out_size = out_size
+        self.Weight = Param(None)
+
+        if in_size is not None:
+            self.init_W()
+
+        if bias:
+            self.Bias = Param(np.zeros(out_size))
+        else:
+            self.Bias = None
+
+    def _init_W(self):
+        self.Weight.value = np.random.randn(self.in_size, self.out_size) * np.sqrt(1 / self.in_size)
+
+    def forward(self, x):
+        if self.Weight.value is None:
+            self.in_size = x.shape[1]
+            self._init_W()
+
+        y = linear(x, self.Weight, self.Bias)
+        return y
+
+class MyNet(Module):
+    def __init__(self, hidden_size, out_size):
+        super().__init__()
+        self.l1 = Linear(hidden_size)
+        self.l2 = Linear(out_size)
+
+    def forward(self, x):
+        z = self.l1(x)
+        z = sigmoid(z)
+        z = self.l2(z)
+        return z
+
+lr = 0.01
+iters = 5000
+
+np.random.seed(0)
+x = Var(np.random.randn(1000, 1))
+y = np.square(x) + np.random.randn(1000, 1)
+
+model = MyNet(10, 1)
+
+for i in range(iters):
+    y_pred = model(x)
+    loss = mean_squared_error(y, y_pred)
+    model.clear_grads()
+    loss.backward()
+
+    for p in model.params():
+        p.value -= lr * p.grad
+
+    if i % 500 == 0:
+        print(loss.value)
