@@ -1,61 +1,9 @@
 import numpy as np
+import math
 from christorch.core import Var
 from christorch.layers import Module, Linear
 from christorch.functions import sigmoid, mean_squared_error
 from christorch.optimizers import SGD
-
-# def f(x):
-#     s1 = Sin()
-#     s2 = Sin()
-#     return s2(s1(x))
-
-# def add(x0, x1):
-#     return Add()(x0, x1)
-
-# def my_func(x):
-#     return Exp()(x)
-
-# # x0 = Var(np.random.randn(2, 3, 5))
-# # x1 = Var(np.array([[1.0,2.0],[4.0,5.0], [10.0, 15.0]]))
-# # my_mul = lambda x: my_func(x, x1)
-# # x1 = Var(np.array([10.0]))
-# # my_add = lambda x: add(x0, x)
-# # y = x0.reshape(6)
-# # y.backward()
-# # print(x0.grad)
-# # gradient_check(my_func, x0)
-# # gradient_check(my_func, x0)
-
-# A = np.array(
-#     [
-#         [1, 2, 3],
-#         [4, 5, 6],
-#     ],
-#     dtype=np.float32
-# )
-
-# B = np.array(
-#     [
-#         [1, 2],
-#         [3, 4],
-#         [5, 6],
-#     ],
-#     dtype=np.float32
-# )
-
-
-# expected = A @ B
-# actual = matmul(A, B)
-
-# print("NumPy:")
-# print(expected)
-
-# print("AdaptiveCpp:")
-# print(actual)
-
-# assert np.allclose(expected, actual)
-
-# print("PASS")
 
 class MyNet(Module):
     def __init__(self, hidden_size, out_size):
@@ -73,18 +21,30 @@ lr = 0.01
 iters = 5000
 
 np.random.seed(0)
-x = Var(np.random.randn(1000, 1))
-y = np.square(x) + np.random.randn(1000, 1)
+x = np.random.randn(30000, 1)
+y = np.square(x) + np.random.randn(30000, 1)
+data_size = len(x)
+batch_size = 100
+epochs = 10
+iters = math.ceil(data_size / batch_size)
 
 model = MyNet(10, 1)
 optimizer = SGD(model, lr)
 
-for i in range(iters):
-    y_pred = model(x)
-    loss = mean_squared_error(y, y_pred)
-    model.clear_grads()
-    loss.backward()
-    optimizer.step()
+for epoch in range(epochs):
+    total_loss = 0
+    index = np.random.permutation(data_size)
+    for i in range(iters):
+        batch_index = index[i * batch_size:(i + 1) * batch_size]
+        batch_x = Var(x[batch_index])
+        batch_label = y[batch_index]
+        y_pred = model(batch_x)
+        loss = mean_squared_error(batch_label, y_pred)
+        model.clear_grads()
+        loss.backward()
+        optimizer.step()
 
-    if i % 500 == 0:
-        print(loss.value)
+        total_loss += float(loss.value) * len(batch_label)
+
+    avg_loss = total_loss / data_size
+    print('epoch {}, loss {}'.format(epoch + 1, avg_loss))
