@@ -35,7 +35,7 @@ class Var:
         self.producer = None
         self.level = 0
 
-    @property 
+    @property
     def shape(self):
         return self.value.shape
 
