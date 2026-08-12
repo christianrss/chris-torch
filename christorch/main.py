@@ -35,6 +35,9 @@ class Var:
         self.producer = None
         self.level = 0
 
+    def __len__(self):
+        return len(self.value)
+
     def __add__(self, other):
         other = to_array(other)
         other = to_var(other)
@@ -436,9 +439,43 @@ def sigmoid(x):
     y = 1 / (1 + Exp()(-x))
     return y
 
+def mean_squared_error(x0, x1):
+    diff = x0 - x1
+    return Sum()(diff ** 2) / len(diff)
+
+def network(x):
+    z = linear(x, W1, b1)
+    z = sigmoid(z)
+    z = linear(z, W2, b2)
+    return z
+
+lr = 0.01
+iters = 5000
+
 np.random.seed(0)
-x0 = Var(np.random.randn(2,3))
-W = Var(np.random.randn(3,4))
-b = Var(np.zeros(4))
-z = linear(x0, W, b)
-z = sigmoid(z)
+x = Var(np.random.randn(1000, 1))
+y = np.square(x) + np.random.randn(1000, 1)
+
+W1 = Var(np.random.randn(1,4))
+b1 = Var(np.zeros(4))
+W2 = Var(np.random.randn(4,1))
+b2 = Var(np.zeros(1))
+
+for i in range(iters):
+    y_pred = network(x)
+    loss = mean_squared_error(y, y_pred)
+
+    W1.clear_grad()
+    b1.clear_grad()
+    W2.clear_grad()
+    b2.clear_grad()
+
+    loss.backward()
+
+    W1.value -= lr * W1.grad
+    b1.value -= lr * b1.grad
+    W2.value -= lr * W2.grad
+    b2.value -= lr * b2.grad
+
+    if i % 500 == 0:
+        print(loss.value)
