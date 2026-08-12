@@ -525,6 +525,23 @@ class MyNet(Module):
         z = self.l2(z)
         return z
 
+class Optimizer:
+    def __init__(self, model, lr=0.01):
+        self.model = model
+        self.lr = lr
+
+    def step(self):
+        for param in self.model.params():
+            if param.grad is not None:
+                self.update_param(param)
+
+    def update_param(self, param):
+        raise NotImplementedError()
+
+class SGD(Optimizer):
+    def update_param(self, param):
+        param.value -= self.lr * param.grad
+
 lr = 0.01
 iters = 5000
 
@@ -533,15 +550,14 @@ x = Var(np.random.randn(1000, 1))
 y = np.square(x) + np.random.randn(1000, 1)
 
 model = MyNet(10, 1)
+optimizer = SGD(model, lr)
 
 for i in range(iters):
     y_pred = model(x)
     loss = mean_squared_error(y, y_pred)
     model.clear_grads()
     loss.backward()
-
-    for p in model.params():
-        p.value -= lr * p.grad
+    optimizer.step()
 
     if i % 500 == 0:
         print(loss.value)
