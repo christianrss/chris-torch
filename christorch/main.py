@@ -449,6 +449,18 @@ def network(x):
     z = linear(z, W2, b2)
     return z
 
+class Module:
+    def __call__(self, *xs):
+        self.input_vars = xs
+        ys = self.forward(*xs)
+        ys = to_tuple(ys)
+        self.output_vars = ys
+        return ys if len(ys) > 1 else ys[0]
+
+    def forward(self, *xs):
+        raise NotImplementedError()
+
+
 lr = 0.01
 iters = 5000
 
