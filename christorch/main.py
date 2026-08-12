@@ -483,6 +483,32 @@ class Module:
         for param in self.params():
             param.clear_grad()
 
+class Linear(Module):
+    def __init__(self, out_size, in_size=None, bias=True):
+        super().__init__()
+        self.in_size = in_size
+        self.out_size = out_size
+        self.Weight = Param(None)
+
+        if in_size is not None:
+            self.init_W()
+
+        if bias:
+            self.Bias = Param(np.zeros(out_size))
+        else:
+            self.Bias = None
+
+    def _init_W(self):
+        self.Weight.value = np.random.randn(self.in_size, self.out_size) * np.sqrt(1 / self.in_size)
+
+    def forward(self, x):
+        if self.Weight.value is None:
+            self.in_size = x.shape[1]
+            self._init_W()
+
+        y = linear(x, self.Weight, self.Bias)
+        return y
+
 lr = 0.01
 iters = 5000
 
