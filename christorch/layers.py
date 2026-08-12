@@ -45,7 +45,7 @@ class Linear(Module):
         self.Weight = Param(None)
 
         if in_size is not None:
-            self.init_W()
+            self._init_W()
 
         if bias:
             self.Bias = Param(np.zeros(out_size))

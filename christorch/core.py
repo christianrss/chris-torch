@@ -33,12 +33,12 @@ class Var:
     def __sub__(self, other):
         other = to_array(other)
         other = to_var(other)
-        return Sub()(other, self)
+        return Sub()(self, other)
 
     def __rsub__(self, other):
         other = to_array(other)
         other = to_var(other)
-        return Sub()(self, other)
+        return Sub()(other, self)
 
     def __mul__(self, other):
         other = to_array(other)
