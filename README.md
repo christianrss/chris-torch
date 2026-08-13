@@ -1,125 +1,75 @@
 # Chris Torch
 
-A PyTorch-like deep learning framework written from scratch for studying automatic differentiation, tensor operations, neural networks, numerical kernels, and heterogeneous computing.
+Chris Torch is an experimental deep learning framework implementing automatic differentiation, tensor operations, neural-network primitives, and native heterogeneous compute backends.
 
-Chris Torch currently implements its core autograd system in Python/NumPy and includes an experimental native C++/SYCL backend built with [AdaptiveCpp](https://github.com/AdaptiveCpp/AdaptiveCpp).
+The core framework is implemented in Python and NumPy. Performance-sensitive operations can be dispatched to native C++/SYCL kernels compiled with AdaptiveCpp.
 
-> Experimental and educational project. Chris Torch is not intended to replace PyTorch.
+The project provides a compact implementation of the main abstractions found in modern deep learning frameworks while keeping the execution path accessible from the Python API down to the native kernel.
 
-## Overview
+## Features
 
-Chris Torch is an attempt to understand deep learning frameworks from the inside out rather than treating tensor libraries and automatic differentiation as black boxes.
+Current functionality includes:
 
-The project explores multiple layers of the machine learning software stack:
+* reverse-mode automatic differentiation
+* dynamic computational graphs
+* broadcasting-aware gradient propagation
+* numerical gradient checking
+* tensor arithmetic
+* matrix multiplication
+* reshape and transpose operations
+* neural-network module abstraction
+* trainable parameters
+* linear layers
+* optimizers
+* native C++ compute integration
+* SYCL kernels
+* AdaptiveCpp backend
+* CPU execution
+* native MatMul benchmark
+* Python/native interoperability
 
-```text
-Neural Networks
-       │
-       ▼
-Automatic Differentiation
-       │
-       ▼
-Tensor Operations
-       │
-       ▼
-Native Numerical Kernels
-       │
-       ▼
-SYCL / AdaptiveCpp
-       │
-       ▼
-CPU / GPU
-```
-
-The framework starts with simple NumPy implementations and progressively moves performance-critical operations toward native C++/SYCL kernels.
-
-## Related Projects
-
-Chris Torch is part of a collection of personal projects exploring machine learning systems from training frameworks down to model execution and heterogeneous computing.
-
-### Chris Torch
-
-PyTorch-like framework implementing automatic differentiation, tensor operations, neural network primitives, and experimental native compute backends.
-
-This repository.
-
-### Chris GPT
-
-GPT-2 implementation and training experiments intended to explore transformer training using the Chris Torch ecosystem.
-
-### [Chris Llama](https://github.com/christianrss/chris-llama)
-
-LLM inference engine written in C.
-
-The project explores low-level model execution, GGUF, tensor operations, KV cache, quantization, and other techniques used by modern LLM inference engines.
-
-### tests-acpp
-
-Experimental repository for studying AdaptiveCpp, SYCL, heterogeneous computing, numerical kernels, benchmarking, and compiler/runtime behavior.
-
-It is also used as a testbed while learning and experimenting with the AdaptiveCpp ecosystem.
-
-### [AdaptiveCpp Fork](https://github.com/christianrss/AdaptiveCpp)
-
-Personal fork of AdaptiveCpp used for experiments, development branches, bug investigation, and potential upstream contributions.
-
-Official upstream project:
-
-[AdaptiveCpp/AdaptiveCpp](https://github.com/AdaptiveCpp/AdaptiveCpp)
-
-## Goals
-
-Chris Torch is built from fundamental components to explore:
-
-* reverse-mode automatic differentiation;
-* computational graphs;
-* gradient propagation;
-* tensor operations;
-* broadcasting;
-* matrix operations;
-* neural network primitives;
-* native C++ kernels;
-* SYCL programming;
-* heterogeneous CPU/GPU execution;
-* backend abstraction;
-* kernel optimization;
-* interaction between Python and native code.
-
-The long-term direction is to progressively replace selected NumPy operations with native kernels while preserving a high-level Python interface.
-
-## Current Architecture
+## Architecture
 
 ```text
-                    Chris Torch
-                         │
-          ┌──────────────┴──────────────┐
-          │                             │
-          ▼                             ▼
-     Python Core                  Native Backend
-          │                             │
-    ┌─────┴─────┐                       ▼
-    │           │                  C++ / SYCL
-    ▼           ▼                       │
-  Var       Function                    ▼
-    │           │                  AdaptiveCpp
-    └─────┬─────┘                       │
-          │                       ┌─────┴─────┐
-          ▼                       ▼           ▼
-       Autograd                  CPU         GPU
-          │
-          ▼
-       NumPy
+                         Chris Torch
+                              │
+                 ┌────────────┴────────────┐
+                 │                         │
+                 ▼                         ▼
+            Python Core              Native Backend
+                 │                         │
+          ┌──────┴──────┐                  ▼
+          │             │              C++ / SYCL
+          ▼             ▼                  │
+        Var          Function              ▼
+          │             │              AdaptiveCpp
+          └──────┬──────┘                  │
+                 │                  ┌──────┴──────┐
+                 ▼                  ▼             ▼
+              Autograd             CPU           GPU
+                 │
+                 ▼
+               NumPy
 ```
 
-At the moment, NumPy remains the reference implementation for most operations.
+NumPy provides the reference implementation for the core tensor and autograd operations.
 
-Selected operations can be moved into the experimental AdaptiveCpp backend.
+The native backend provides an independent execution path for selected numerical kernels.
 
-## Autograd Engine
+## Autograd
 
-The core abstraction consists of `Var` objects and differentiable `Function` objects.
+The automatic differentiation engine is based on two primary abstractions:
 
-A forward pass constructs a computational graph:
+```text
+Var
+Function
+```
+
+`Var` stores tensor data, gradients, and graph relationships.
+
+`Function` represents differentiable operations and defines their forward and backward behavior.
+
+A typical computational graph has the following form:
 
 ```text
 Var
@@ -137,7 +87,7 @@ Function
 Var
 ```
 
-Each resulting variable keeps track of the function that produced it.
+The forward pass constructs the graph dynamically.
 
 Calling:
 
@@ -145,13 +95,13 @@ Calling:
 y.backward()
 ```
 
-traverses the graph in reverse order and propagates gradients through each operation.
+traverses the graph in reverse topological order and propagates gradients through the registered operations.
 
-The engine also tracks function levels so the graph can be traversed in the correct order.
+Function levels are tracked to preserve the dependency order during backward execution.
 
-## Operations
+## Tensor Operations
 
-Current work includes operations such as:
+Implemented or actively integrated operations include:
 
 ```text
 Add
@@ -168,15 +118,25 @@ Transpose
 MatMul
 ```
 
-Broadcasted binary operations reduce their gradients back to the original input dimensions when necessary.
+Broadcasted operations reduce gradients back to the original operand dimensions during the backward pass.
+
+Example:
+
+```python
+from chris_torch import Var
+
+x = Var(...)
+y = Var(...)
+
+z = x * y
+z.backward()
+```
 
 ## Gradient Checking
 
-Chris Torch includes numerical gradient checking for validating autograd implementations.
+Chris Torch includes numerical gradient checking for validating new differentiable operations.
 
-The analytical gradient produced by the computational graph can be compared against a numerical approximation based on finite differences.
-
-Conceptually:
+The analytical gradient generated by autograd is compared against a finite-difference approximation.
 
 ```text
 Analytical gradient
@@ -186,15 +146,78 @@ Analytical gradient
 Numerical gradient
 ```
 
-This is useful when implementing new differentiable operations.
+For a scalar function:
 
-## AdaptiveCpp Backend
+```text
+f(x + ε) - f(x - ε)
+───────────────────
+       2ε
+```
 
-Chris Torch includes an experimental native backend using C++, SYCL, and AdaptiveCpp.
+provides a numerical approximation of the derivative.
 
-[AdaptiveCpp](https://github.com/AdaptiveCpp/AdaptiveCpp) is a heterogeneous C++ compiler/runtime ecosystem supporting SYCL applications across different hardware backends.
+Gradient checking is used as a correctness test before operations are integrated into larger models.
 
-The current integration follows this architecture:
+## Neural Network Components
+
+The framework includes abstractions for constructing trainable models.
+
+Core components include:
+
+```text
+Module
+Param
+Linear
+Optimizer
+```
+
+These provide the basic model structure:
+
+```text
+Module
+  │
+  ├── Param
+  │
+  ├── Linear
+  │
+  └── child Module
+```
+
+Parameters are registered through the module hierarchy and can be consumed by optimizers during training.
+
+## Training Pipeline
+
+The framework supports standard forward/backward optimization loops.
+
+Conceptually:
+
+```text
+input
+  │
+  ▼
+model.forward()
+  │
+  ▼
+prediction
+  │
+  ▼
+loss
+  │
+  ▼
+backward()
+  │
+  ▼
+gradients
+  │
+  ▼
+optimizer.step()
+```
+
+This execution path provides the basis for MLP and larger model experiments.
+
+## Native Backend
+
+Chris Torch includes a native compute backend implemented in C++ and SYCL.
 
 ```text
 Chris Torch
@@ -215,22 +238,78 @@ C++ / SYCL
 AdaptiveCpp
     │
     ▼
-Execution backend
+Execution device
 ```
 
-The native backend is compiled into:
+The native library is generated at:
 
 ```text
 build/libchristorch_acpp.so
 ```
 
-and exposed to Python through a native interface.
+The Python runtime communicates with the native backend through a C-compatible interface.
+
+## Python / Native Boundary
+
+Native functions expose a stable ABI that can be called from Python.
+
+The current MatMul path is:
+
+```text
+MatMul.forward()
+       │
+       ▼
+AdaptiveCpp backend
+       │
+       ▼
+ctypes
+       │
+       ▼
+ct_matmul_f32()
+       │
+       ▼
+SYCL MatMul kernel
+```
+
+This design keeps the Python framework independent from C++ types and AdaptiveCpp internals.
+
+A NumPy operation such as:
+
+```python
+np.dot(x, w)
+```
+
+can therefore be replaced by a native implementation without changing the higher-level model API.
+
+## AdaptiveCpp Backend
+
+The heterogeneous backend is implemented using SYCL and AdaptiveCpp.
+
+Project fork:
+
+https://github.com/christianrss/AdaptiveCpp
+
+Upstream project:
+
+https://github.com/AdaptiveCpp/AdaptiveCpp
+
+Current backend responsibilities include:
+
+* SYCL queue creation
+* device execution
+* USM memory allocation
+* native numerical kernels
+* Python/native interoperability
+* CPU and GPU backend experiments
+* kernel benchmarking
+
+The backend is maintained separately from the Python autograd implementation.
 
 ## Native MatMul
 
-Matrix multiplication is the first operation being used to experiment with the AdaptiveCpp backend.
+Matrix multiplication is the primary native numerical kernel currently integrated into the backend.
 
-For:
+Given:
 
 ```text
 A[M × K]
@@ -243,9 +322,7 @@ the kernel computes:
 C[M × N] = A × B
 ```
 
-The initial implementation uses a two-dimensional SYCL execution range.
-
-Each work-item computes one output element:
+The baseline implementation uses a two-dimensional SYCL execution range.
 
 ```cpp
 q.parallel_for(
@@ -257,7 +334,7 @@ q.parallel_for(
 
         float sum = 0.0f;
 
-        for(std::size_t k = 0; k < K; ++k)
+        for (std::size_t k = 0; k < K; ++k)
         {
             sum += A[row * K + k]
                  * B[k * N + col];
@@ -268,63 +345,92 @@ q.parallel_for(
 );
 ```
 
-This is intentionally a naive implementation.
+Each work-item computes one output element.
 
-Its primary purposes are:
+The implementation provides a correctness reference and performance baseline for more advanced kernel designs.
 
-* validating the native backend;
-* testing Python/native integration;
-* understanding SYCL execution;
-* establishing a performance baseline;
-* providing a starting point for optimization.
+## MatMul Backward Pass
 
-## Python ↔ Native Integration
+The same matrix multiplication primitive can be used during automatic differentiation.
 
-The native implementation exposes a C-compatible interface that can be loaded from Python.
-
-Conceptually:
+For:
 
 ```text
-MatMul.forward()
-       │
-       ▼
-AdaptiveCpp Python backend
-       │
-       ▼
-ctypes
-       │
-       ▼
-ct_matmul_f32()
-       │
-       ▼
-SYCL MatMul
+Y = XW
 ```
 
-This makes it possible to progressively replace operations such as:
-
-```python
-np.dot(x, W)
-```
-
-with native implementations.
-
-The same MatMul kernel can also be used by autograd during the backward pass:
+and upstream gradient:
 
 ```text
-                gy
-               /  \
-              /    \
-             ▼      ▼
-        gy × Wᵀ    xᵀ × gy
-             │      │
-             └──┬───┘
-                ▼
+dY
+```
+
+the backward pass requires:
+
+```text
+dX = dY Wᵀ
+dW = Xᵀ dY
+```
+
+Execution:
+
+```text
+               dY
+              /  \
+             /    \
+            ▼      ▼
+       dY × Wᵀ   Xᵀ × dY
+            │      │
+            └──┬───┘
+               ▼
           Native MatMul
 ```
 
-## Native Backend Structure
+This allows the native kernel to participate in both forward and backward execution.
 
-The native portion of the repository follows a simple structure:
+## Memory Model
+
+The current native backend uses explicit memory transfer between NumPy and the SYCL execution environment.
+
+```text
+NumPy memory
+     │
+     │ copy
+     ▼
+SYCL USM
+     │
+     ▼
+Kernel
+     │
+     │ copy
+     ▼
+NumPy memory
+```
+
+This model keeps the native integration simple and provides a clear boundary between Python-managed and device-managed memory.
+
+Current limitations of this approach include:
+
+* host/device copies around native operations
+* no persistent device tensor representation
+* no unified tensor/device abstraction
+* Python ownership of the primary tensor state
+
+A persistent device-memory architecture would require a native tensor representation containing information such as:
+
+```text
+Tensor
+  │
+  ├── shape
+  ├── strides
+  ├── dtype
+  ├── device
+  └── data
+```
+
+Such an abstraction would allow multiple kernels to operate on device-resident data without returning to NumPy after each operation.
+
+## Native Backend Structure
 
 ```text
 chris-torch/
@@ -346,13 +452,23 @@ chris-torch/
 └── Makefile
 ```
 
-Additional native operations can be added under `native/`.
+Native operations are maintained under:
 
-The Makefile automatically discovers native `.cpp` files, allowing the backend to grow without maintaining a manual source list.
+```text
+native/
+```
 
-## Building the AdaptiveCpp Backend
+Benchmark executables are kept under:
 
-AdaptiveCpp must be installed before building the native backend.
+```text
+build/benchmarks/
+```
+
+The Makefile discovers native `.cpp` sources automatically.
+
+## Building the Native Backend
+
+AdaptiveCpp must be available before building the SYCL backend.
 
 The current development environment uses:
 
@@ -366,7 +482,7 @@ Build:
 make
 ```
 
-This generates:
+Output:
 
 ```text
 build/libchristorch_acpp.so
@@ -386,7 +502,7 @@ make rebuild
 
 ## Benchmarking
 
-Native kernels are benchmarked independently from Python and the autograd engine.
+Native numerical kernels can be benchmarked independently from Python and the autograd engine.
 
 Run:
 
@@ -394,9 +510,9 @@ Run:
 make benchmark
 ```
 
-### Current MatMul Baseline
+## MatMul Reference Benchmark
 
-Current development environment:
+Reference development environment:
 
 ```text
 Device: AdaptiveCpp OpenMP host device
@@ -405,22 +521,20 @@ Matrix: 1024 × 1024 × 1024
 Runs:   20
 ```
 
-Current measured baseline:
+Measured baseline:
 
 ```text
 Average:     ~362.7 ms
 Performance: ~5.92 GFLOPS
 ```
 
-This number represents the current naive implementation and serves only as a baseline for future optimization.
+This measurement represents the baseline implementation and environment.
 
-It should not be interpreted as the performance limit of AdaptiveCpp, SYCL, or the hardware.
+It is not a performance limit for AdaptiveCpp, SYCL, or the underlying hardware.
 
-## MatMul Optimization Roadmap
+## Kernel Optimization Areas
 
-The current kernel intentionally starts from the simplest implementation.
-
-Planned experiments can progressively explore:
+The baseline MatMul kernel provides a reference point for experimenting with:
 
 ```text
 Naive MatMul
@@ -447,82 +561,11 @@ Memory Access Optimization
 Backend-specific Optimization
 ```
 
-Performance improvements can then be measured against the original ~5.92 GFLOPS baseline.
+Performance changes can be measured against the same benchmark configuration.
 
-## Memory Model
+## Native Kernel Scope
 
-The first native implementation uses a simple interoperability model.
-
-Currently:
-
-```text
-NumPy memory
-     │
-     │ copy
-     ▼
-SYCL USM
-     │
-     ▼
-Kernel
-     │
-     │ copy
-     ▼
-NumPy memory
-```
-
-This prioritizes simplicity while the backend architecture is being developed.
-
-It is not the intended final memory architecture.
-
-A more advanced implementation could introduce a native tensor abstraction:
-
-```text
-Tensor
-  │
-  ├── shape
-  ├── strides
-  ├── dtype
-  ├── device
-  │
-  └── data
-       │
-       ▼
-   Native memory
-       │
-       ▼
-   SYCL kernels
-```
-
-This would allow tensors to remain on the target device across multiple operations.
-
-For example:
-
-```text
-Host
- │
- │ initial transfer
- ▼
-GPU Tensor
- │
- ├── MatMul
- │
- ├── Add
- │
- ├── ReLU
- │
- ├── MatMul
- │
- └── Softmax
- │
- ▼
-Host
-```
-
-instead of copying between Python and the device after every operation.
-
-## Planned Native Kernels
-
-Potential operations for the AdaptiveCpp backend include:
+The backend architecture can support additional operation classes.
 
 ```text
 Tensor operations
@@ -542,196 +585,303 @@ Activations
 ├── GELU
 └── SiLU
 
-Neural network operations
+Neural-network operations
 ├── Softmax
 ├── normalization
 └── embedding operations
 ```
 
-Implementations will be added progressively as the backend evolves.
+Implementation status should be determined from the current source tree rather than inferred from this list.
 
-## Neural Networks
+## Current Scope
 
-Chris Torch is intended to progressively explore higher-level neural network components on top of the autograd engine.
-
-Areas of interest include:
+The current framework contains or actively exercises:
 
 ```text
-MLP
-CNN
-RNN
-Transformers
+Python / NumPy
+├── automatic differentiation
+├── computational graphs
+├── reverse-mode differentiation
+├── broadcasting-aware gradients
+├── numerical gradient checking
+├── differentiable tensor operations
+├── matrix multiplication
+├── Module
+├── Param
+├── Linear
+└── optimizer infrastructure
+
+Native
+├── C++ backend
+├── C-compatible interface
+├── SYCL
+├── AdaptiveCpp
+├── native MatMul
+├── benchmark executable
+└── OpenMP host-device execution
 ```
 
-The goal is not only to implement the models, but also to understand how their operations eventually map down to tensor kernels and hardware execution.
+The Python implementation remains the correctness reference for most operations.
 
-## Relationship with Chris GPT
+## Repository Relationships
 
-Chris GPT is intended to explore GPT-style model training using the same general ecosystem.
-
-Conceptually:
+Chris Torch is part of a set of independent projects covering different layers of the machine-learning stack.
 
 ```text
-Chris GPT
-    │
-    ▼
-Transformer
-    │
-    ▼
-Chris Torch
-    │
-    ├── Autograd
-    ├── Tensor Operations
-    │
-    └── Native Backend
-             │
-             ▼
-          SYCL
-             │
-             ▼
-        AdaptiveCpp
+                        ML Systems
+                            │
+          ┌─────────────────┼─────────────────┐
+          │                 │                 │
+          ▼                 ▼                 ▼
+     Chris Torch       Chris-GPT-2       Chris Llama
+      Framework          Training          Inference
+          │                 │                 │
+          └─────────────────┼─────────────────┘
+                            ▼
+                     Native Compute
+                            │
+                            ▼
+                    AdaptiveCpp / SYCL
+                            │
+                            ▼
+                       CPU / GPU
 ```
 
-This makes Chris Torch the framework-level component of the broader experimentation stack.
+The repositories are independent and do not require each other as runtime dependencies unless explicitly integrated.
 
-## Relationship with Chris Llama
+## Chris-GPT-2
 
-[Chris Llama](https://github.com/christianrss/chris-llama) explores the other side of the model lifecycle: inference.
+https://github.com/christianrss/chris-gpt-2
 
-Conceptually:
+Chris-GPT-2 is a GPT-2 124M-scale implementation and pretraining project.
+
+The model was pretrained from scratch on approximately 10 billion FineWeb-Edu tokens.
+
+Public Transformers model:
+
+https://huggingface.co/christianrss/chris-gpt-2-124m
+
+GGUF release:
+
+https://huggingface.co/christianrss/chris-gpt-2-124m-GGUF
+
+Chris-GPT-2 provides a larger Transformer workload for studying training infrastructure and framework behavior.
+
+Chris Torch and Chris-GPT-2 remain separate projects.
+
+## Chris Llama
+
+https://github.com/christianrss/chris-llama
+
+Chris Llama is a low-level inference runtime for GPT-style models.
+
+Current areas include:
+
+* GGUF loading
+* GPT-2 inference
+* byte-level BPE tokenization
+* KV caching
+* sampling
+* quantized model formats
+* CPU execution
+* AdaptiveCpp/SYCL execution
+
+The project covers the inference side of the model lifecycle while Chris Torch focuses on framework and training primitives.
+
+## AdaptiveCpp Fork
+
+https://github.com/christianrss/AdaptiveCpp
+
+Development fork used for AdaptiveCpp experiments, backend validation, compiler/runtime investigation, and potential upstream contributions.
+
+Official project:
+
+https://github.com/AdaptiveCpp/AdaptiveCpp
+
+## tests-acpp
+
+https://github.com/christianrss/tests-acpp
+
+Independent AdaptiveCpp/SYCL test repository.
+
+It contains isolated experiments covering:
+
+* SYCL kernels
+* USM
+* heterogeneous execution
+* numerical kernels
+* compiler behavior
+* runtime behavior
+* benchmarking
+
+`tests-acpp` is not a runtime dependency of Chris Torch.
+
+## Stack Relationship
 
 ```text
-              Model
-             /     \
-            /       \
-           ▼         ▼
-      Training     Inference
-          │            │
-          ▼            ▼
-     Chris Torch   Chris Llama
-          │            │
-          ▼            ▼
-     Chris GPT       C runtime
+                     Chris-GPT-2
+                     model training
+                          │
+                          ▼
+                      workload
+                          │
+                          ▼
+                     Chris Torch
+                          │
+             ┌────────────┴────────────┐
+             │                         │
+             ▼                         ▼
+           NumPy                  Native Backend
+                                       │
+                                       ▼
+                                  C++ / SYCL
+                                       │
+                                       ▼
+                                  AdaptiveCpp
+                                       │
+                              ┌────────┴────────┐
+                              ▼                 ▼
+                             CPU               GPU
 ```
 
-The projects intentionally explore different layers rather than relying entirely on existing ML frameworks and inference engines.
-
-## Relationship with AdaptiveCpp
-
-The AdaptiveCpp backend also provides a practical environment for learning heterogeneous C++ and exploring the compiler/runtime stack underneath SYCL applications.
-
-Related repositories:
-
-* [AdaptiveCpp upstream](https://github.com/AdaptiveCpp/AdaptiveCpp)
-* [My AdaptiveCpp fork](https://github.com/christianrss/AdaptiveCpp)
-
-The separate `tests-acpp` repository is used for smaller isolated AdaptiveCpp/SYCL experiments and compiler/runtime testing before concepts are integrated into Chris Torch.
-
-## Development Roadmap
-
-The general direction of the project is:
+Inference experiments are handled separately by Chris Llama:
 
 ```text
-Autograd
-   │
-   ▼
-Tensor Operations
-   │
-   ▼
-Neural Network Primitives
-   │
-   ▼
-Native Kernels
-   │
-   ▼
-Tensor / Device Abstraction
-   │
-   ▼
-Kernel Optimization
-   │
-   ▼
-Heterogeneous Execution
-   │
-   ▼
-Model Training Experiments
+                 Trained model
+                      │
+                      ▼
+                     GGUF
+                      │
+                      ▼
+                 Chris Llama
+                      │
+                      ▼
+              inference backend
 ```
 
-Near-term areas of experimentation include:
+## Development Principles
 
-* expanding autograd operations;
-* improving gradient validation;
-* integrating native MatMul with the Python API;
-* adding additional SYCL kernels;
-* improving the native memory model;
-* experimenting with optimized MatMul implementations;
-* comparing CPU and GPU execution;
-* benchmarking kernel implementations;
-* developing the tensor/device abstraction required to avoid unnecessary memory transfers.
+The implementation follows a small number of engineering principles:
 
-## Development Philosophy
+* correctness before optimization;
+* reference implementations before optimized kernels;
+* explicit computational graphs;
+* explicit memory movement;
+* independently testable native kernels;
+* stable boundaries between Python and native code;
+* benchmark-driven optimization.
 
-Chris Torch deliberately implements fundamental components instead of hiding them behind an existing deep learning framework.
+These constraints keep correctness and performance changes measurable as the framework evolves.
 
-The project is primarily about understanding:
+## Current Limitations
 
-* how automatic differentiation actually works;
-* how computational graphs are constructed and traversed;
-* how tensor broadcasting affects gradient computation;
-* how matrix operations are implemented;
-* how Python interacts with native C++;
-* how kernels map onto parallel hardware;
-* how memory movement affects performance;
-* how heterogeneous runtimes execute kernels;
-* how low-level optimization affects machine learning workloads.
+Current architectural limitations include:
 
-Correctness comes before optimization.
+* NumPy remains the primary tensor storage implementation;
+* most operations execute on the host;
+* native tensors are not yet first-class Python objects;
+* device memory is not persistent across the complete computation graph;
+* host/device copies are required around native operations;
+* the current native MatMul is a baseline implementation;
+* native operation coverage is limited;
+* GPU backend behavior depends on the available AdaptiveCpp toolchain and hardware stack.
 
-Simple implementations establish baselines before more advanced implementations are introduced.
+## Project Structure
+
+A simplified repository layout:
+
+```text
+chris-torch/
+├── native/
+│   ├── matmul.hpp
+│   ├── matmul.cpp
+│   └── ...
+│
+├── benchmarks/
+│   ├── bench_matmul.cpp
+│   └── ...
+│
+├── build/
+│   ├── libchristorch_acpp.so
+│   └── benchmarks/
+│       └── bench_matmul
+│
+├── tests/
+│   └── ...
+│
+├── Makefile
+└── README.md
+```
+
+Python package files and additional source directories depend on the current repository version.
 
 ## Status
 
-Chris Torch is under active development.
+Chris Torch is experimental and under active development.
 
-Currently implemented or under active experimentation:
+Implemented or currently represented in the project:
 
 ```text
 ✓ Python/NumPy autograd engine
-✓ Computational graph
+✓ Dynamic computational graph
 ✓ Reverse-mode differentiation
 ✓ Broadcasting-aware gradients
-✓ Gradient checking
+✓ Numerical gradient checking
 ✓ Core differentiable operations
 ✓ Matrix multiplication
+✓ Module abstraction
+✓ Parameter abstraction
+✓ Linear layer
+✓ Optimizer infrastructure
 ✓ Experimental C++/SYCL backend
 ✓ AdaptiveCpp integration
 ✓ Native shared library
 ✓ Native MatMul kernel
 ✓ Native MatMul benchmark
 ✓ AdaptiveCpp OpenMP host execution
-
-○ Additional native kernels
-○ Optimized MatMul
-○ Native tensor abstraction
-○ Persistent device memory
-○ GPU backend testing
-○ MLP
-○ CNN
-○ RNN
-○ Transformer experiments
-○ Chris GPT integration
 ```
+
+Areas not represented as completed functionality should be treated as experimental or future work.
+
+## Related Repositories
+
+* Chris-GPT-2
+  https://github.com/christianrss/chris-gpt-2
+
+* Chris Llama
+  https://github.com/christianrss/chris-llama
+
+* AdaptiveCpp fork
+  https://github.com/christianrss/AdaptiveCpp
+
+* tests-acpp
+  https://github.com/christianrss/tests-acpp
+
+* AdaptiveCpp upstream
+  https://github.com/AdaptiveCpp/AdaptiveCpp
 
 ## References
 
-* [AdaptiveCpp](https://github.com/AdaptiveCpp/AdaptiveCpp)
-* [AdaptiveCpp Documentation](https://adaptivecpp.github.io/)
-* [Khronos SYCL](https://www.khronos.org/sycl/)
-* [SYCL Registry](https://registry.khronos.org/SYCL/)
-* [Chris Llama](https://github.com/christianrss/chris-llama)
-* [My AdaptiveCpp Fork](https://github.com/christianrss/AdaptiveCpp)
+* AdaptiveCpp
+  https://github.com/AdaptiveCpp/AdaptiveCpp
+
+* AdaptiveCpp Documentation
+  https://adaptivecpp.github.io/
+
+* Khronos SYCL
+  https://www.khronos.org/sycl/
+
+* SYCL Registry
+  https://registry.khronos.org/SYCL/
+
+* Chris-GPT-2
+  https://github.com/christianrss/chris-gpt-2
+
+* Chris Llama
+  https://github.com/christianrss/chris-llama
 
 ## License
 
-Chris Torch is an experimental project intended for educational, research, and systems programming exploration.
+See the repository license for the terms applying to Chris Torch source code.
 
-Third-party projects referenced or used by Chris Torch are distributed under their respective licenses.
+AdaptiveCpp, SYCL implementations, model weights, datasets, and other third-party components remain subject to their respective licenses.
